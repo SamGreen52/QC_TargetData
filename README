@@ -1,0 +1,64 @@
+Files required: 
+-PLINK binary (bed, bim, and fam)
+NOTES: 
+-this code was used on the terminal of the cluster
+
+
+# 1. Load required modules
+module load PLINK/1.9b_6.21-x86_64
+module load R/4.4.1-foss-2022b
+
+# 3. Standard QC with PLINK
+plink --bfile OCDonly_sex \
+      --maf 0.01 \
+      --hwe 1e-6 \
+      --geno 0.01 \
+      --mind 0.01 \
+      --write-snplist \
+      --make-just-fam \
+      --out OCD_QC
+
+# 4. LD pruning for heterozygosity check
+plink --bfile OCDonly_sex \
+      --keep OCD_QC.fam \
+      --extract OCD_QC.snplist \
+      --indep-pairwise 200 50 0.25 \
+      --out OCD_QC
+
+# 5. Heterozygosity check
+plink --bfile OCDonly_sex \
+      --extract OCD_QC.prune.in \
+      --keep OCD_QC.fam \
+      --het \
+      --out OCD_QC
+
+
+#6. R 
+
+############### IN R
+7. # Read heterozygosity output
+dat <- read.table("OCD_QC.het", header=TRUE)
+
+8. # Mean and standard deviation of F
+m <- mean(dat\$F)
+s <- sd(dat\$F)
+
+9. # Filter out samples with F coefficient outside ±3 SD
+valid <- subset(dat, F <= m + 3 * s & F >= m - 3 * s)
+
+10. # Save filtered sample list (FID and IID only)
+write.table(valid[, c(1, 2)], "OCD_QC.valid.sample", quote=FALSE, row.names=FALSE)
+q()
+
+############### Back in terminal
+11. plink --bfile OCDonly_sex \
+      --make-bed \
+      --keep OCD_QC.valid.sample \
+      --extract OCD_QC.snplist \
+      --out OCDfinal.QC
+
+12. You have the QCed binary files ( OCDfinal.QC.bed, OCDfinal.QC.bim, OCDfinal.QC.fam) 
+
+
+
+
